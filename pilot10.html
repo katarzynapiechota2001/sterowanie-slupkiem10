@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pilot Wielokanałowy</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 30px; background: #f0f0f0; }
+        select { width: 80%; max-width: 300px; padding: 15px; font-size: 18px; margin-bottom: 20px; border-radius: 8px; }
+        button { width: 80%; max-width: 300px; padding: 20px; margin: 10px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
+        .btn-up { background-color: #2ecc71; color: white; }
+        .btn-down { background-color: #e74c3c; color: white; }
+        #error-log { color: red; margin-top: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>Wybierz słupek:</h2>
+    <select id="wybor-slupka">
+        <option value="A1">Słupek A1</option>
+        <option value="A2">Słupek A2</option>
+        <option value="A3">Słupek A3</option>
+        <option value="A4">Słupek A4</option>
+        <option value="A5">Słupek A5</option>
+        <option value="A6">Słupek A6</option>
+        <option value="A7">Słupek A7</option>
+        <option value="A8">Słupek A8</option>
+        <option value="A9">Słupek A9</option>
+        <option value="A10">Słupek A10</option>
+    </select>
+
+    <br>
+    <button class="btn-up" onclick="ustawStan(1)">Podnieś (1)</button>
+    <button class="btn-down" onclick="ustawStan(0)">Opuść (0)</button>
+    <div id="error-log"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // Wstaw swój zweryfikowany obiekt konfiguracyjny Firebase
+        const firebaseConfig = {
+            projectId: "sterowanie-slupkiem10",
+            databaseURL: "https://sterowanie-slupkiem10.europe-west1.firebasedatabase.app"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        window.ustawStan = function(stan) {
+            const idSlupka = document.getElementById('wybor-slupka').value;
+            const log = document.getElementById('error-log');
+            
+            set(ref(database, 'slupki/' + idSlupka), stan)
+                .then(() => {
+                    log.style.color = "green";
+                    log.innerText = "Słupek " + idSlupka + " zmieniony na: " + stan;
+                })
+                .catch((error) => {
+                    log.style.color = "red";
+                    log.innerText = "Błąd: " + error.message;
+                });
+        }
+    </script>
+</body>
+</html>
