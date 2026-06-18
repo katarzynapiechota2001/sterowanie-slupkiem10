@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Status Odbiornika (Słupek)</title>
+    <title>Status Odbiornika 10</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background: #222; color: white; }
         #kolo { width: 200px; height: 200px; border-radius: 50%; margin: 40px auto; background-color: #555; transition: background-color 0.3s ease; }
@@ -19,33 +19,36 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // Odczyt parametru ID z adresu URL (np. ?id=A1 lub ?id=A5)
         const urlParams = new URLSearchParams(window.location.search);
-        const idSlupka = urlParams.get('id') || 'A1'; // Domyślnie A1, jeśli nie podano w linku
+        const idSlupka = urlParams.get('id') || 'A1'; 
 
         document.getElementById('naglowek').innerText = "Status Słupka " + idSlupka;
         const logoTekst = document.getElementById('tekst');
         const kolo = document.getElementById('kolo');
 
-        // WSTAW SWÓJ ZWERYFIKOWANY OBIEKT CONFIG Z KONSOLI FIREBASE:
+        // Wklej tutaj kompletny obiekt z konsoli Firebase nowego projektu sterowanie-slupkiem10
         const firebaseConfig = {
-            projectId: "sterowanie-slupkiem",
-            databaseURL: "https://sterowanie-slupkiem.europe-west1.firebasedatabase.app"
+            apiKey: "TWÓJ_NOWY_API_KEY",
+            authDomain: "sterowanie-slupkiem10.firebaseapp.com",
+            databaseURL: "https://sterowanie-slupkiem10.europe-west1.firebasedatabase.app",
+            projectId: "sterowanie-slupkiem10",
+            storageBucket: "sterowanie-slupkiem10.appspot.com",
+            messagingSenderId: "TWÓJ_SENDER_ID",
+            appId: "TWÓJ_APP_ID"
         };
 
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
         
-        // Dynamiczne określenie ścieżki nasłuchiwania w bazie danych
         const stanRef = ref(database, 'slupki/' + idSlupka);
 
         onValue(stanRef, (snapshot) => {
             const data = snapshot.val();
             if (data === 1) {
-                kolo.style.backgroundColor = '#e74c3c'; // Podniesiony = Czerwony
+                kolo.style.backgroundColor = '#e74c3c'; 
                 logoTekst.innerText = "SŁUPEK PODNIESIONY";
             } else if (data === 0) {
-                kolo.style.backgroundColor = '#2ecc71'; // Opuszczony = Zielony
+                kolo.style.backgroundColor = '#2ecc71'; 
                 logoTekst.innerText = "SŁUPEK OPUSZCZONY";
             } else {
                 kolo.style.backgroundColor = '#555';

@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pilot Matrycowy</title>
+    <title>Pilot Matrycowy 10</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 20px; background: #f0f0f0; color: #333; }
-        
-        /* Styl kontenera siatki dla 10 słupków */
         .matrix-container { 
             display: grid; 
             grid-template-columns: repeat(5, 1fr); 
@@ -16,37 +14,28 @@
             margin: 20px auto; 
             padding: 10px;
         }
-        
-        /* Styl pojedynczego pola słupka */
         .matrix-item { 
             padding: 20px 0; 
             font-size: 18px; 
             font-weight: bold; 
             color: white; 
-            background-color: #7f8c8d; /* Kolor domyślny przed załadowaniem danych */
+            background-color: #7f8c8d; 
             border: 3px solid transparent; 
             border-radius: 8px; 
             cursor: pointer; 
             transition: all 0.2s ease-in-out; 
         }
-        
-        /* Wizualne oznaczenie wybranego elementu */
         .matrix-item.selected { 
             border-color: #2c3e50; 
             box-shadow: 0 0 12px rgba(0, 0, 0, 0.6); 
             transform: scale(1.05); 
         }
-        
-        /* Sekcja przycisków wykonawczych */
         .controls { margin-top: 30px; }
         button { width: 40%; max-width: 200px; padding: 15px; margin: 5px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
         .btn-up { background-color: #34495e; color: white; }
         .btn-down { background-color: #7f8c8d; color: white; }
-        
-        /* Aktywne przyciski sterujące (gdy słupek jest wybrany) */
         .active .btn-up { background-color: #2ecc71; }
         .active .btn-down { background-color: #e74c3c; }
-        
         #status-log { margin-top: 20px; font-weight: bold; font-size: 16px; }
     </style>
 </head>
@@ -79,10 +68,15 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // WSTAW SWÓJ ZWERYFIKOWANY OBIEKT CONFIG Z KONSOLI FIREBASE:
+        // Wklej tutaj kompletny obiekt z konsoli Firebase nowego projektu sterowanie-slupkiem10
         const firebaseConfig = {
-            projectId: "sterowanie-slupkiem",
-            databaseURL: "https://sterowanie-slupkiem.europe-west1.firebasedatabase.app"
+            apiKey: "TWÓJ_NOWY_API_KEY",
+            authDomain: "sterowanie-slupkiem10.firebaseapp.com",
+            databaseURL: "https://sterowanie-slupkiem10.europe-west1.firebasedatabase.app",
+            projectId: "sterowanie-slupkiem10",
+            storageBucket: "sterowanie-slupkiem10.appspot.com",
+            messagingSenderId: "TWÓJ_SENDER_ID",
+            appId: "TWÓJ_APP_ID"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -91,50 +85,40 @@
         let wybranySlupek = null;
         const log = document.getElementById('status-log');
 
-        // 1. Monitorowanie stanów wszystkich słupków w czasie rzeczywistym i aktualizacja kolorów
         const slupkiRef = ref(database, 'slupki');
         onValue(slupkiRef, (snapshot) => {
             const data = snapshot.val() || {};
-            
             for (let i = 1; i <= 10; i++) {
                 const id = 'A' + i;
                 const stan = data[id];
                 const element = document.getElementById('cell-' + id);
-                
                 if (element) {
                     if (stan === 1) {
-                        element.style.backgroundColor = '#e74c3c'; // Podniesiony = Czerwony
+                        element.style.backgroundColor = '#e74c3c'; 
                     } else if (stan === 0) {
-                        element.style.backgroundColor = '#2ecc71'; // Opuszczony = Zielony
+                        element.style.backgroundColor = '#2ecc71'; 
                     } else {
-                        element.style.backgroundColor = '#7f8c8d'; // Brak danych w bazie = Szary
+                        element.style.backgroundColor = '#7f8c8d'; 
                     }
                 }
             }
         });
 
-        // 2. Funkcja wyboru słupka z matrycy
         window.wybierzSlupek = function(id) {
             wybranySlupek = id;
-            
-            // Usunięcie klasy zaznaczenia ze wszystkich pól i dodanie do klikniętego
             document.querySelectorAll('.matrix-item').forEach(el => el.classList.remove('selected'));
             document.getElementById('cell-' + id).classList.add('selected');
-            
-            // Wizualna aktywacja sekcji przycisków sterujących
             document.getElementById('control-panel').classList.add('active');
             document.getElementById('komunikat-wyboru').innerHTML = "Wybrany obiekt: <b>" + id + "</b>. Użyj przycisków poniżej:";
             log.innerText = "";
         }
 
-        // 3. Funkcja modyfikacji stanu wybranego słupka
         window.ustawStan = function(stan) {
             if (!wybranySlupek) {
                 log.style.color = "red";
                 log.innerText = "Błąd: Najpierw wskaż słupek na schemacie.";
                 return;
             }
-            
             set(ref(database, 'slupki/' + wybranySlupek), stan)
                 .then(() => {
                     log.style.color = "green";
