@@ -3,61 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pilot Wielokanałowy</title>
+    <title>Pilot Matrycowy</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 30px; background: #f0f0f0; }
-        select { width: 80%; max-width: 300px; padding: 15px; font-size: 18px; margin-bottom: 20px; border-radius: 8px; }
-        button { width: 80%; max-width: 300px; padding: 20px; margin: 10px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
-        .btn-up { background-color: #2ecc71; color: white; }
-        .btn-down { background-color: #e74c3c; color: white; }
-        #error-log { color: red; margin-top: 20px; font-weight: bold; }
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 20px; background: #f0f0f0; color: #333; }
+        
+        /* Styl kontenera siatki dla 10 słupków */
+        .matrix-container { 
+            display: grid; 
+            grid-template-columns: repeat(5, 1fr); 
+            gap: 12px; 
+            max-width: 500px; 
+            margin: 20px auto; 
+            padding: 10px;
+        }
+        
+        /* Styl pojedynczego pola słupka */
+        .matrix-item { 
+            padding: 20px 0; 
+            font-size: 18px; 
+            font-weight: bold; 
+            color: white; 
+            background-color: #7f8c8d; /* Kolor domyślny przed załadowaniem danych */
+            border: 3px solid transparent; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: all 0.2s ease-in-out; 
+        }
+        
+        /* Wizualne oznaczenie wybranego elementu */
+        .matrix-item.selected { 
+            border-color: #2c3e50; 
+            box-shadow: 0 0 12px rgba(0, 0, 0, 0.6); 
+            transform: scale(1.05); 
+        }
+        
+        /* Sekcja przycisków wykonawczych */
+        .controls { margin-top: 30px; }
+        button { width: 40%; max-width: 200px; padding: 15px; margin: 5px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
+        .btn-up { background-color: #34495e; color: white; }
+        .btn-down { background-color: #7f8c8d; color: white; }
+        
+        /* Aktywne przyciski sterujące (gdy słupek jest wybrany) */
+        .active .btn-up { background-color: #2ecc71; }
+        .active .btn-down { background-color: #e74c3c; }
+        
+        #status-log { margin-top: 20px; font-weight: bold; font-size: 16px; }
     </style>
 </head>
 <body>
-    <h2>Wybierz słupek:</h2>
-    <select id="wybor-slupka">
-        <option value="A1">Słupek A1</option>
-        <option value="A2">Słupek A2</option>
-        <option value="A3">Słupek A3</option>
-        <option value="A4">Słupek A4</option>
-        <option value="A5">Słupek A5</option>
-        <option value="A6">Słupek A6</option>
-        <option value="A7">Słupek A7</option>
-        <option value="A8">Słupek A8</option>
-        <option value="A9">Słupek A9</option>
-        <option value="A10">Słupek A10</option>
-    </select>
 
-    <br>
-    <button class="btn-up" onclick="ustawStan(1)">Podnieś (1)</button>
-    <button class="btn-down" onclick="ustawStan(0)">Opuść (0)</button>
-    <div id="error-log"></div>
+    <h2>Schemat rozmieszczenia słupków</h2>
+    <div id="komunikat-wyboru">Wybierz słupek ze schematu, aby zmienić jego stan:</div>
+
+    <div class="matrix-container">
+        <div id="cell-A1" class="matrix-item" onclick="wybierzSlupek('A1')">A1</div>
+        <div id="cell-A2" class="matrix-item" onclick="wybierzSlupek('A2')">A2</div>
+        <div id="cell-A3" class="matrix-item" onclick="wybierzSlupek('A3')">A3</div>
+        <div id="cell-A4" class="matrix-item" onclick="wybierzSlupek('A4')">A4</div>
+        <div id="cell-A5" class="matrix-item" onclick="wybierzSlupek('A5')">A5</div>
+        <div id="cell-A6" class="matrix-item" onclick="wybierzSlupek('A6')">A6</div>
+        <div id="cell-A7" class="matrix-item" onclick="wybierzSlupek('A7')">A7</div>
+        <div id="cell-A8" class="matrix-item" onclick="wybierzSlupek('A8')">A8</div>
+        <div id="cell-A9" class="matrix-item" onclick="wybierzSlupek('A9')">A9</div>
+        <div id="cell-A10" class="matrix-item" onclick="wybierzSlupek('A10')">A10</div>
+    </div>
+
+    <div class="controls" id="control-panel">
+        <button class="btn-up" onclick="ustawStan(1)">Podnieś (1)</button>
+        <button class="btn-down" onclick="ustawStan(0)">Opuść (0)</button>
+    </div>
+
+    <div id="status-log"></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // Wstaw swój zweryfikowany obiekt konfiguracyjny Firebase
+        // WSTAW SWÓJ ZWERYFIKOWANY OBIEKT CONFIG Z KONSOLI FIREBASE:
         const firebaseConfig = {
-            projectId: "sterowanie-slupkiem10",
-            databaseURL: "https://sterowanie-slupkiem10.europe-west1.firebasedatabase.app"
+            projectId: "sterowanie-slupkiem",
+            databaseURL: "https://sterowanie-slupkiem.europe-west1.firebasedatabase.app"
         };
 
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
+        
+        let wybranySlupek = null;
+        const log = document.getElementById('status-log');
 
-        window.ustawStan = function(stan) {
-            const idSlupka = document.getElementById('wybor-slupka').value;
-            const log = document.getElementById('error-log');
+        // 1. Monitorowanie stanów wszystkich słupków w czasie rzeczywistym i aktualizacja kolorów
+        const slupkiRef = ref(database, 'slupki');
+        onValue(slupkiRef, (snapshot) => {
+            const data = snapshot.val() || {};
             
-            set(ref(database, 'slupki/' + idSlupka), stan)
+            for (let i = 1; i <= 10; i++) {
+                const id = 'A' + i;
+                const stan = data[id];
+                const element = document.getElementById('cell-' + id);
+                
+                if (element) {
+                    if (stan === 1) {
+                        element.style.backgroundColor = '#e74c3c'; // Podniesiony = Czerwony
+                    } else if (stan === 0) {
+                        element.style.backgroundColor = '#2ecc71'; // Opuszczony = Zielony
+                    } else {
+                        element.style.backgroundColor = '#7f8c8d'; // Brak danych w bazie = Szary
+                    }
+                }
+            }
+        });
+
+        // 2. Funkcja wyboru słupka z matrycy
+        window.wybierzSlupek = function(id) {
+            wybranySlupek = id;
+            
+            // Usunięcie klasy zaznaczenia ze wszystkich pól i dodanie do klikniętego
+            document.querySelectorAll('.matrix-item').forEach(el => el.classList.remove('selected'));
+            document.getElementById('cell-' + id).classList.add('selected');
+            
+            // Wizualna aktywacja sekcji przycisków sterujących
+            document.getElementById('control-panel').classList.add('active');
+            document.getElementById('komunikat-wyboru').innerHTML = "Wybrany obiekt: <b>" + id + "</b>. Użyj przycisków poniżej:";
+            log.innerText = "";
+        }
+
+        // 3. Funkcja modyfikacji stanu wybranego słupka
+        window.ustawStan = function(stan) {
+            if (!wybranySlupek) {
+                log.style.color = "red";
+                log.innerText = "Błąd: Najpierw wskaż słupek na schemacie.";
+                return;
+            }
+            
+            set(ref(database, 'slupki/' + wybranySlupek), stan)
                 .then(() => {
                     log.style.color = "green";
-                    log.innerText = "Słupek " + idSlupka + " zmieniony na: " + stan;
+                    log.innerText = "Wysłano żądanie zmiany dla " + wybranySlupek;
                 })
                 .catch((error) => {
                     log.style.color = "red";
-                    log.innerText = "Błąd: " + error.message;
+                    log.innerText = "Błąd zapisu: " + error.message;
                 });
         }
     </script>
