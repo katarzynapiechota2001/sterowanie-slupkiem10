@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Status Odbiornika</title>
+    <title>Status Odbiornika (Słupek)</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background: #222; color: white; }
         #kolo { width: 200px; height: 200px; border-radius: 50%; margin: 40px auto; background-color: #555; transition: background-color 0.3s ease; }
@@ -13,42 +13,43 @@
 <body>
     <h2 id="naglowek">Status Słupka</h2>
     <div id="kolo"></div>
-    <div id="tekst">Inicjalizacja...</div>
+    <div id="tekst">Oczekiwanie na dane...</div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // Odczyt parametru ID z adresu URL strony (np. ?id=A3)
+        // Odczyt parametru ID z adresu URL (np. ?id=A1 lub ?id=A5)
         const urlParams = new URLSearchParams(window.location.search);
-        const idSlupka = urlParams.get('id') || 'A1'; // Domyślnie A1, jeśli brak parametru
+        const idSlupka = urlParams.get('id') || 'A1'; // Domyślnie A1, jeśli nie podano w linku
 
         document.getElementById('naglowek').innerText = "Status Słupka " + idSlupka;
         const logoTekst = document.getElementById('tekst');
         const kolo = document.getElementById('kolo');
 
+        // WSTAW SWÓJ ZWERYFIKOWANY OBIEKT CONFIG Z KONSOLI FIREBASE:
         const firebaseConfig = {
-            projectId: "sterowanie-slupkiem10",
-            databaseURL: "https://sterowanie-slupkiem10.europe-west1.firebasedatabase.app"
+            projectId: "sterowanie-slupkiem",
+            databaseURL: "https://sterowanie-slupkiem.europe-west1.firebasedatabase.app"
         };
 
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
         
-        // Subskrypcja podkatalogu dedykowanego dla danego ID
+        // Dynamiczne określenie ścieżki nasłuchiwania w bazie danych
         const stanRef = ref(database, 'slupki/' + idSlupka);
 
         onValue(stanRef, (snapshot) => {
             const data = snapshot.val();
             if (data === 1) {
-                kolo.style.backgroundColor = '#2ecc71';
-                logoTekst.innerText = "PODNIESIONY";
+                kolo.style.backgroundColor = '#e74c3c'; // Podniesiony = Czerwony
+                logoTekst.innerText = "SŁUPEK PODNIESIONY";
             } else if (data === 0) {
-                kolo.style.backgroundColor = '#e74c3c';
-                logoTekst.innerText = "OPUSZCZONY";
+                kolo.style.backgroundColor = '#2ecc71'; // Opuszczony = Zielony
+                logoTekst.innerText = "SŁUPEK OPUSZCZONY";
             } else {
                 kolo.style.backgroundColor = '#555';
-                logoTekst.innerText = "Brak danych (Naciśnij przycisk na pilocie)";
+                logoTekst.innerText = "Brak danych (Uruchom pilota i nadaj stan)";
             }
         });
     </script>
