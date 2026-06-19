@@ -75,3 +75,85 @@
             storageBucket: "sterowanie-slupkiem10.firebasestorage.app",
             messagingSenderId: "813653953691",
             appId: "1:813653953691:web:3c5e02fb488f11160bca3e"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        
+        let streamWideo = null;
+        let trackWideo = null;
+
+        window.inicjalizujAparat = async function() {
+            debugElement.innerText = "Inicjalizacja kamery...";
+            try {
+                streamWideo = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: "environment"
+                    }
+                });
+                
+                videoElement.srcObject = streamWideo;
+                trackWideo = streamWideo.getVideoTracks()[0];
+                
+                setTimeout(() => {
+                    try {
+                        const capabilities = trackWideo.getCapabilities();
+                        if (capabilities.torch) {
+                            debugElement.innerText = "Aparat podłączony. Wykryto moduł latarki.";
+                        } else {
+                            debugElement.innerText = "Aparat podłączony, ale przeglądarka NIE wykryła latarki w tym aparacie.";
+                        }
+                    } catch (e) {
+                        debugElement.innerText = "Aparat podłączony. Brak możliwości odczytu specyfikacji (getCapabilities).";
+                    }
+                }, 1000);
+
+                btnPermission.style.display = 'none';
+                logoTekst.innerText = "Połączono. Oczekiwanie na dane z pilota...";
+                
+                uruchomNasluchiwanieBazy();
+            } catch (error) {
+                debugElement.innerText = "BŁĄD krytyczny getUserMedia: " + error.message;
+                logoTekst.innerText = "Błąd inicjalizacji sprzętu.";
+            }
+        }
+
+        function uruchomNasluchiwanieBazy() {
+            const stanRef = ref(database, 'slupki/' + idSlupka);
+
+            onValue(stanRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data === 1) {
+                    kolo.style.backgroundColor = '#e74c3c'; 
+                    logoTekst.innerText = "SŁUPEK PODNIESIONY";
+                    wysterujLatarke(true);
+                } else if (data === 0) {
+                    kolo.style.backgroundColor = '#2ecc71'; 
+                    logoTekst.innerText = "SŁUPEK OPUSZCZONY";
+                    wysterujLatarke(false);
+                } else {
+                    kolo.style.backgroundColor = '#555';
+                    logoTekst.innerText = "Brak danych (Uruchom pilota i nadaj stan)";
+                    wysterujLatarke(false);
+                }
+            });
+        }
+
+        function wysterujLatarke(stan) {
+            if (trackWideo && typeof trackWideo.applyConstraints === 'function') {
+                trackWideo.applyConstraints({
+                    advanced: [{ torch: stan }]
+                })
+                .then(() => {
+                    debugElement.innerText = "Dioda LED zsynchronizowana ze stanem: " + stan;
+                })
+                .catch(err => {
+                    debugElement.innerText = "Błąd applyConstraints: " + err.message;
+                });
+            } else {
+                debugElement.innerText = "Błąd wykonawczy: trackWideo nieaktywny lub brak obsługi applyConstraints.";
+            }
+        }
+    </script>
+</body>
+</html>
