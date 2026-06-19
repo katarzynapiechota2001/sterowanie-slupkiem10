@@ -3,17 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Status Odbiornika 10</title>
+    <title>Status Odbiornika 10 + Wizualizacja + Latarka</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background: #222; color: white; }
+        body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; background: #222; color: white; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         #kolo { width: 200px; height: 200px; border-radius: 50%; margin: 40px auto; background-color: #555; transition: background-color 0.3s ease; }
         #tekst { font-size: 24px; font-weight: bold; }
+        
+        /* Ekran startowy wymuszający interakcję do odblokowania API latarki */
+        #btn-permission { 
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
+            background-color: rgba(41, 128, 185, 0.95); color: white; 
+            z-index: 9999; border: none; font-size: 28px; font-weight: bold; 
+            cursor: pointer; padding: 40px; text-align: center;
+        }
     </style>
 </head>
 <body>
+
+    <button id="btn-permission" onclick="inicjalizujAparat()">
+        DOTKNIJ EKRANU TEL. SŁUPKA<br><br>
+        Aby aktywować koło, napisy i latarkę
+    </button>
+
     <h2 id="naglowek">Status Słupka</h2>
     <div id="kolo"></div>
-    <div id="tekst">Oczekiwanie na dane...</div>
+    <div id="tekst">Oczekiwanie na aktywację urządzenia...</div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -25,8 +39,9 @@
         document.getElementById('naglowek').innerText = "Status Słupka " + idSlupka;
         const logoTekst = document.getElementById('tekst');
         const kolo = document.getElementById('kolo');
+        const btnPermission = document.getElementById('btn-permission');
 
-        // Wklej tutaj kompletny obiekt z konsoli Firebase nowego projektu sterowanie-slupkiem10
+        // Wklej dane konfiguracji nowego projektu sterowanie-slupkiem10
         const firebaseConfig = {
   apiKey: "AIzaSyDaT2Eqg5431xX6Q0VwOoaCeyVofxhYw74",
   authDomain: "sterowanie-slupkiem10.firebaseapp.com",
@@ -37,24 +52,63 @@
   appId: "1:813653953691:web:3c5e02fb488f11160bca3e"
 };
 
+
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
         
-        const stanRef = ref(database, 'slupki/' + idSlupka);
+        let streamWideo = null;
+        let trackWideo = null;
 
-        onValue(stanRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data === 1) {
-                kolo.style.backgroundColor = '#e74c3c'; 
-                logoTekst.innerText = "SŁUPEK PODNIESIONY";
-            } else if (data === 0) {
-                kolo.style.backgroundColor = '#2ecc71'; 
-                logoTekst.innerText = "SŁUPEK OPUSZCZONY";
-            } else {
-                kolo.style.backgroundColor = '#555';
-                logoTekst.innerText = "Brak danych (Uruchom pilota i nadaj stan)";
+        window.inicjalizujAparat = async function() {
+            try {
+                streamWideo = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" }
+                });
+                trackWideo = streamWideo.getVideoTracks()[0];
+                btnPermission.style.display = 'none';
+                logoTekst.innerText = "Połączono. Oczekiwanie na dane z pilota...";
+                
+                uruchomNasluchiwanieBazy();
+            } catch (error) {
+                alert("Błąd dostępu do aparatu/latarki: " + error.message);
+                logoTekst.innerText = "Błąd inicjalizacji sprzętu.";
             }
-        });
+        }
+
+        function uruchomNasluchiwanieBazy() {
+            const stanRef = ref(database, 'slupki/' + idSlupka);
+
+            onValue(stanRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data === 1) {
+                    // Zachowanie poprzedniej funkcjonalności wizualnej
+                    kolo.style.backgroundColor = '#e74c3c'; 
+                    logoTekst.innerText = "SŁUPEK PODNIESIONY (REZERWACJA)";
+                    
+                    // Równoległe sterowanie latarką
+                    wysterujLatarke(true);
+                } else if (data === 0) {
+                    // Zachowanie poprzedniej funkcjonalności wizualnej
+                    kolo.style.backgroundColor = '#2ecc71'; 
+                    logoTekst.innerText = "SŁUPEK OPUSZCZONY (ZWOLNIONY)";
+                    
+                    // Równoległe sterowanie latarką
+                    wysterujLatarke(false);
+                } else {
+                    kolo.style.backgroundColor = '#555';
+                    logoTekst.innerText = "Brak danych (Uruchom pilota i nadaj stan)";
+                    wysterujLatarke(false);
+                }
+            });
+        }
+
+        function wysterujLatarke(stan) {
+            if (trackWideo && typeof trackWideo.applyConstraints === 'function') {
+                trackWideo.applyConstraints({
+                    advanced: [{ torch: stan }]
+                }).catch(err => console.log("Błąd przełączania diody LED:", err));
+            }
+        }
     </script>
 </body>
 </html>
