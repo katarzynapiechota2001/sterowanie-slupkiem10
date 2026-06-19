@@ -6,7 +6,7 @@
     <title>Status Odbiornika 10</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; background: #222; color: white; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        #kolo { width: 150px; height: 150px; border-radius: 50%; margin: 20px auto; background-color: #555; transition: background-color 0.3s ease; }
+        #kolo { width: 180px; height: 180px; border-radius: 50%; margin: 30px auto; background-color: #555; transition: background-color 0.3s ease; }
         #tekst { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
         
         #btn-permission { 
@@ -16,41 +16,27 @@
             cursor: pointer; padding: 40px; text-align: center;
         }
 
-        #sprzetowy-strumien {
-            width: 90%;
-            max-width: 480px;
-            height: auto;
-            aspect-ratio: 4 / 3;
-            background: #000;
-            border: 2px solid #555;
-            border-radius: 8px;
-            margin-top: 10px;
-        }
-
         #debug {
             margin-top: 15px;
             font-family: monospace;
-            font-size: 12px;
+            font-size: 14px;
             color: #ff9f43;
             max-width: 90%;
-            word-wrap: break-word;
         }
     </style>
 </head>
 <body>
 
-    <button id="btn-permission" onclick="skanujUrzyczeniaIdzDoInicjalizacji()">
+    <button id="btn-permission" onclick="odblokujSygnalizacje()">
         DOTKNIJ EKRANU TEL. SŁUPKA<br><br>
-        Skanowanie kamer i aktywacja
+        Aby odblokować sygnały dźwiękowe i wibracje
     </button>
 
     <h2 id="naglowek">Status Słupka</h2>
     <div id="kolo"></div>
     <div id="tekst">Oczekiwanie na aktywację urządzenia...</div>
-
-    <video id="sprzetowy-strumien" autoplay playsinline muted></video>
     
-    <div id="debug">Status systemu: Brak inicjalizacji</div>
+    <div id="debug">Status: Zablokowany interfejs</div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -63,7 +49,6 @@
         const logoTekst = document.getElementById('tekst');
         const kolo = document.getElementById('kolo');
         const btnPermission = document.getElementById('btn-permission');
-        const videoElement = document.getElementById('sprzetowy-strumien');
         const debugElement = document.getElementById('debug');
 
         const firebaseConfig = {
@@ -79,112 +64,107 @@
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
         
-        let streamWideo = null;
-        let trackWideo = null;
+        let audioCtx = null;
+        let interfejsOdblokowany = false;
+        let poprzedniStan = null;
 
-        // Krok 1: Wymuszenie pierwszego uprawnienia, aby móc wylistować identyfikatory sprzętowe
-        window.skanujUrzyczeniaIdzDoInicjalizacji = async function() {
+        // Inicjalizacja kontekstu audio po kliknięciu (wymóg przeglądarek)
+        window.odblokujSygnalizacje = function() {
             try {
-                debugElement.innerText = "Uzyskiwanie wstępnego dostępu do multimediów...";
-                const wstepnyStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                // Zamknięcie wstępnego strumienia
-                wstepnyStream.getTracks().forEach(track => track.stop());
-                
-                // Przejście do właściwego wyboru kamery
-                inicjalizujAparatZObslugaLatarki();
-            } catch (error) {
-                debugElement.innerText = "Brak podstawowych uprawnień do kamery: " + error.message;
-            }
-        }
-
-        // Krok 2: Przeiterowanie po kamerach w celu znalezienia modułu 'torch'
-        async function inicjalizujAparatZObslugaLatarki() {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                
-                let wybranyDeviceId = null;
-                debugElement.innerText = `Znaleziono kamer: ${videoDevices.length}. Szukanie modułu latarki...`;
-
-                // Testowanie każdej kamery po kolei od końca (zazwyczaj kamery tylne są na końcu listy)
-                for (let i = videoDevices.length - 1; i >= 0; i--) {
-                    const device = videoDevices[i];
-                    const testStream = await navigator.mediaDevices.getUserMedia({
-                        video: { deviceId: { exact: device.deviceId } }
-                    });
-                    const testTrack = testStream.getVideoTracks()[0];
-                    const capabilities = testTrack.getCapabilities ? testTrack.getCapabilities() : {};
-
-                    if (capabilities.torch) {
-                        wybranyDeviceId = device.deviceId;
-                        streamWideo = testStream;
-                        trackWideo = testTrack;
-                        debugElement.innerText = `Sukces: Wybrano kamerę ID: ${device.label || i} z obsługą latarki.`;
-                        break;
-                    } else {
-                        // Jeśli ta kamera nie ma latarki, zamykamy strumień i sprawdzamy następną
-                        testTrack.stop();
-                    }
-                }
-
-                // Fallback: jeśli żadna kamera nie zaraportowała 'torch', weź domyślną tylną
-                if (!wybranyDeviceId) {
-                    debugElement.innerText = "Żadna kamera nie zgłosiła 'torch'. Próba wymuszenia domyślnej tylnej...";
-                    streamWideo = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: "environment" }
-                    });
-                    trackWideo = streamWideo.getVideoTracks()[0];
-                }
-
-                videoElement.srcObject = streamWideo;
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                interfejsOdblokowany = true;
                 btnPermission.style.display = 'none';
                 logoTekst.innerText = "Połączono. Oczekiwanie na dane z pilota...";
+                debugElement.innerText = "Status: Aktywny (Audio + Vibrate odblokowane)";
+                
+                // Wyzwolenie krótkiej wibracji testowej potwierdzającej działanie hardware
+                if (navigator.vibrate) navigator.vibrate(100);
                 
                 uruchomNasluchiwanieBazy();
-
-            } catch (error) {
-                debugElement.innerText = "Błąd krytyczny skanowania: " + error.message;
+            } catch (e) {
+                debugElement.innerText = "Błąd inicjalizacji AudioContext: " + e.message;
             }
         }
 
-        function运行NasluchiwanieBazy() {
-            // Logika bez zmian
-            uruchomNasluchiwanieBazy();
+        // Funkcja generująca czysty ton bez zewnętrznych plików .mp3
+        function generujDzwiek(czestotliwosc, czasTrwaniaMs) {
+            if (!audioCtx || !interfejsOdblokowany) return;
+            
+            try {
+                const oscylator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscylator.type = 'sine'; // Typ fali: sinusoidalny
+                oscylator.frequency.setValueAtTime(czestotliwosc, audioCtx.currentTime);
+                
+                // Łagodne wygaszanie dźwięku, aby uniknąć trzasków w głośniku
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + (czasTrwaniaMs / 1000));
+
+                oscylator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscylator.start();
+                oscylator.stop(audioCtx.currentTime + (czasTrwaniaMs / 1000));
+            } catch (err) {
+                console.log("Błąd generowania dźwięku:", err);
+            }
+        }
+
+        // Funkcja zarządzająca powiadomieniami fizycznymi (wywoływana tylko przy ZMIANIE stanu)
+        function wykonajSygnalizacje(stan) {
+            if (stan === 1) {
+                // SŁUPEK PODNIESIONY: Wysoki potrójny ton + sekwencja wibracji (pulsowanie)
+                generujDzwiek(880, 150);
+                setTimeout(() => generujDzwiek(880, 150), 200);
+                setTimeout(() => generujDzwiek(1200, 300), 400);
+
+                if (navigator.vibrate) {
+                    // Wibracja: 200ms wibracji, 100ms przerwy, 200ms wibracji, 100ms przerwy, 400ms wibracji
+                    navigator.vibrate([200, 100, 200, 100, 400]);
+                }
+                debugElement.innerText = "Sygnał: Słupek podniesiony (Wibracja + Audio)";
+            } else if (stan === 0) {
+                // SŁUPEK OPUSZCZONY: Niski podwójny ton + pojedyncza krótka wibracja
+                generujDzwiek(440, 200);
+                setTimeout(() => generujDzwiek(330, 300), 250);
+
+                if (navigator.vibrate) {
+                    // Jedna ciągła wibracja przez 500ms
+                    navigator.vibrate(500);
+                }
+                debugElement.innerText = "Sygnał: Słupek opuszczony (Wibracja + Audio)";
+            }
         }
 
         function uruchomNasluchiwanieBazy() {
             const stanRef = ref(database, 'slupki/' + idSlupka);
+
             onValue(stanRef, (snapshot) => {
                 const data = snapshot.val();
+                
                 if (data === 1) {
                     kolo.style.backgroundColor = '#e74c3c'; 
                     logoTekst.innerText = "SŁUPEK PODNIESIONY";
-                    wysterujLatarke(true);
+                    
+                    if (poprzedniStan !== 1) {
+                        wykonajSygnalizacje(1);
+                        poprzedniStan = 1;
+                    }
                 } else if (data === 0) {
                     kolo.style.backgroundColor = '#2ecc71'; 
                     logoTekst.innerText = "SŁUPEK OPUSZCZONY";
-                    wysterujLatarke(false);
+                    
+                    if (poprzedniStan !== 0) {
+                        wykonajSygnalizacje(0);
+                        poprzedniStan = 0;
+                    }
                 } else {
                     kolo.style.backgroundColor = '#555';
                     logoTekst.innerText = "Brak danych (Uruchom pilota i nadaj stan)";
-                    wysterujLatarke(false);
+                    poprzedniStan = null;
                 }
             });
-        }
-
-        function wysterujLatarke(stan) {
-            if (trackWideo && typeof trackWideo.applyConstraints === 'function') {
-                trackWideo.applyConstraints({
-                    advanced: [{ torch: stan }]
-                })
-                .then(() => {
-                    const aktualnyStatus = debugElement.innerText.split("\n")[0];
-                    debugElement.innerText = aktualnyStatus + "\nLED Stan: " + stan;
-                })
-                .catch(err => {
-                    debugElement.innerText = "Błąd applyConstraints: " + err.message;
-                });
-            }
         }
     </script>
 </body>
