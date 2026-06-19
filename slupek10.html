@@ -6,8 +6,8 @@
     <title>Status Odbiornika 10</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; background: #222; color: white; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        #kolo { width: 200px; height: 200px; border-radius: 50%; margin: 40px auto; background-color: #555; transition: background-color 0.3s ease; }
-        #tekst { font-size: 24px; font-weight: bold; }
+        #kolo { width: 150px; height: 150px; border-radius: 50%; margin: 20px auto; background-color: #555; transition: background-color 0.3s ease; }
+        #tekst { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
         
         #btn-permission { 
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
@@ -16,13 +16,24 @@
             cursor: pointer; padding: 40px; text-align: center;
         }
 
-        /* Ukryty element wideo wymuszający działanie hardware'u, umieszczony poza ekranem */
+        /* Wymagana fizyczna widoczność elementu wideo dla podtrzymania procesów hardware */
         #sprzetowy-strumien {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            opacity: 0;
-            pointer-events: none;
+            width: 160px;
+            height: 120px;
+            background: #000;
+            border: 2px solid #555;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        /* Sekcja debugowania błędów na żywo */
+        #debug {
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #ff9f43;
+            max-width: 90%;
+            word-wrap: break-word;
         }
     </style>
 </head>
@@ -33,11 +44,13 @@
         Aby aktywować koło, napisy i latarkę
     </button>
 
-    <video id="sprzetowy-strumien" autoplay playsinline muted></video>
-
     <h2 id="naglowek">Status Słupka</h2>
     <div id="kolo"></div>
     <div id="tekst">Oczekiwanie na aktywację urządzenia...</div>
+
+    <video id="sprzetowy-strumien" autoplay playsinline muted></video>
+    
+    <div id="debug">Status systemu: Brak inicjalizacji</div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -51,6 +64,7 @@
         const kolo = document.getElementById('kolo');
         const btnPermission = document.getElementById('btn-permission');
         const videoElement = document.getElementById('sprzetowy-strumien');
+        const debugElement = document.getElementById('debug');
 
         const firebaseConfig = {
             apiKey: "AIzaSyDaT2Eqg5431xX6Q0VwOoaCeyVofxhYw74",
@@ -69,6 +83,7 @@
         let trackWideo = null;
 
         window.inicjalizujAparat = async function() {
+            debugElement.innerText = "Inicjalizacja kamery...";
             try {
                 streamWideo = await navigator.mediaDevices.getUserMedia({
                     video: { 
@@ -76,16 +91,29 @@
                     }
                 });
                 
-                // Przekazanie strumienia do elementu HTML i uruchomienie odtwarzania
                 videoElement.srcObject = streamWideo;
-                
                 trackWideo = streamWideo.getVideoTracks()[0];
+                
+                // Sprawdzenie czy przeglądarka widzi sprzętową latarkę w tym urządzeniu
+                setTimeout(() => {
+                    try {
+                        const capabilities = trackWideo.getCapabilities();
+                        if (capabilities.torch) {
+                            debugElement.innerText = "Aparat podłączony. Wykryto moduł latarki.";
+                        } else {
+                            debugElement.innerText = "Aparat podłączony, ale przeglądarka NIE wykryła latarki w tym aparacie.";
+                        }
+                    } catch (e) {
+                        debugElement.innerText = "Aparat podłączony. Brak możliwości odczytu specyfikacji (getCapabilities).";
+                    }
+                }, 1000);
+
                 btnPermission.style.display = 'none';
                 logoTekst.innerText = "Połączono. Oczekiwanie na dane z pilota...";
                 
                 uruchomNasluchiwanieBazy();
             } catch (error) {
-                alert("Błąd sprzętowy: " + error.message + ". Upewnij się, że używasz systemu Android oraz protokołu HTTPS.");
+                debugElement.innerText = "BŁĄD krytyczny getUserMedia: " + error.message;
                 logoTekst.innerText = "Błąd inicjalizacji sprzętu.";
             }
         }
@@ -115,7 +143,15 @@
             if (trackWideo && typeof trackWideo.applyConstraints === 'function') {
                 trackWideo.applyConstraints({
                     advanced: [{ torch: stan }]
-                }).catch(err => console.log("Żądanie zmiany stanu diody odrzucone przez system:", err));
+                })
+                .then(() => {
+                    debugElement.innerText = "Dioda LED zsynchronizowana ze stanem: " + stan;
+                })
+                .catch(err => {
+                    debugElement.innerText = "Błąd applyConstraints: " + err.message;
+                });
+            } else {
+                debugElement.innerText = "Błąd wykonawczy: trackWideo nieaktywny lub brak obsługi applyConstraints.";
             }
         }
     </script>
