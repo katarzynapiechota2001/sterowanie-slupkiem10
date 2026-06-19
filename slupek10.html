@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Status Odbiornika 10 + Wizualizacja + Latarka</title>
+    <title>Status Odbiornika 10</title>
     <style>
+        /* Modyfikacja body w celu poprawnego centrowania elementów przy układzie flexbox */
         body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; background: #222; color: white; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         #kolo { width: 200px; height: 200px; border-radius: 50%; margin: 40px auto; background-color: #555; transition: background-color 0.3s ease; }
         #tekst { font-size: 24px; font-weight: bold; }
         
-        /* Ekran startowy wymuszający interakcję do odblokowania API latarki */
+        /* Dodano styl pełnoekranowego panelu przechwytującego kliknięcie użytkownika */
         #btn-permission { 
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
             background-color: rgba(41, 128, 185, 0.95); color: white; 
@@ -41,24 +42,25 @@
         const kolo = document.getElementById('kolo');
         const btnPermission = document.getElementById('btn-permission');
 
-        // Wklej dane konfiguracji nowego projektu sterowanie-slupkiem10
+        // Zachowana Twoja konfiguracja Firebase projektu sterowanie-slupkiem10
         const firebaseConfig = {
-  apiKey: "AIzaSyDaT2Eqg5431xX6Q0VwOoaCeyVofxhYw74",
-  authDomain: "sterowanie-slupkiem10.firebaseapp.com",
-  databaseURL: "https://sterowanie-slupkiem10-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "sterowanie-slupkiem10",
-  storageBucket: "sterowanie-slupkiem10.firebasestorage.app",
-  messagingSenderId: "813653953691",
-  appId: "1:813653953691:web:3c5e02fb488f11160bca3e"
-};
-
+            apiKey: "AIzaSyDaT2Eqg5431xX6Q0VwOoaCeyVofxhYw74",
+            authDomain: "sterowanie-slupkiem10.firebaseapp.com",
+            databaseURL: "https://sterowanie-slupkiem10-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "sterowanie-slupkiem10",
+            storageBucket: "sterowanie-slupkiem10.firebasestorage.app",
+            messagingSenderId: "813653953691",
+            appId: "1:813653953691:web:3c5e02fb488f11160bca3e"
+        };
 
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
         
+        // Inicjalizacja zmiennych przechowujących referencje do hardware'u kamery
         let streamWideo = null;
         let trackWideo = null;
 
+        // Funkcja wywoływana gestem użytkownika, żądająca dostępu do tylnej kamery
         window.inicjalizujAparat = async function() {
             try {
                 streamWideo = await navigator.mediaDevices.getUserMedia({
@@ -68,6 +70,7 @@
                 btnPermission.style.display = 'none';
                 logoTekst.innerText = "Połączono. Oczekiwanie na dane z pilota...";
                 
+                // Bezpieczne uruchomienie nasłuchiwania bazy po uzyskaniu dostępu do sprzętu
                 uruchomNasluchiwanieBazy();
             } catch (error) {
                 alert("Błąd dostępu do aparatu/latarki: " + error.message);
@@ -75,33 +78,35 @@
             }
         }
 
+        // Przeniesienie logiki nasłuchiwania Firebase do osobnej funkcji sterującej wizualizacją i latarką
         function uruchomNasluchiwanieBazy() {
             const stanRef = ref(database, 'slupki/' + idSlupka);
 
             onValue(stanRef, (snapshot) => {
                 const data = snapshot.val();
                 if (data === 1) {
-                    // Zachowanie poprzedniej funkcjonalności wizualnej
+                    // Zachowanie dotychczasowej funkcjonalności wizualnej
                     kolo.style.backgroundColor = '#e74c3c'; 
-                    logoTekst.innerText = "SŁUPEK PODNIESIONY (REZERWACJA)";
-                    
-                    // Równoległe sterowanie latarką
+                    logoTekst.innerText = "SŁUPEK PODNIESIONY";
+                    // Sterowanie sprzętowe
                     wysterujLatarke(true);
                 } else if (data === 0) {
-                    // Zachowanie poprzedniej funkcjonalności wizualnej
+                    // Zachowanie dotychczasowej funkcjonalności wizualnej
                     kolo.style.backgroundColor = '#2ecc71'; 
-                    logoTekst.innerText = "SŁUPEK OPUSZCZONY (ZWOLNIONY)";
-                    
-                    // Równoległe sterowanie latarką
+                    logoTekst.innerText = "SŁUPEK OPUSZCZONY";
+                    // Sterowanie sprzętowe
                     wysterujLatarke(false);
                 } else {
+                    // Zachowanie dotychczasowej funkcjonalności wizualnej
                     kolo.style.backgroundColor = '#555';
                     logoTekst.innerText = "Brak danych (Uruchom pilota i nadaj stan)";
+                    // Sterowanie sprzętowe
                     wysterujLatarke(false);
                 }
             });
         }
 
+        // Niskopoziomowa funkcja modyfikująca parametry pracy diody LED aparatu
         function wysterujLatarke(stan) {
             if (trackWideo && typeof trackWideo.applyConstraints === 'function') {
                 trackWideo.applyConstraints({
