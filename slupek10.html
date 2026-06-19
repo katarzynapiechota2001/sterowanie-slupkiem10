@@ -16,7 +16,6 @@
             cursor: pointer; padding: 40px; text-align: center;
         }
 
-        /* Zmiana: Zwiększono wymiary podglądu strumienia wideo (obrazu z kamery) */
         #sprzetowy-strumien {
             width: 90%;
             max-width: 480px;
@@ -40,9 +39,9 @@
 </head>
 <body>
 
-    <button id="btn-permission" onclick="inicjalizujAparat()">
+    <button id="btn-permission" onclick="skanujUrzyczeniaIdzDoInicjalizacji()">
         DOTKNIJ EKRANU TEL. SŁUPKA<br><br>
-        Aby aktywować koło, napisy i latarkę
+        Skanowanie kamer i aktywacja
     </button>
 
     <h2 id="naglowek">Status Słupka</h2>
@@ -83,44 +82,78 @@
         let streamWideo = null;
         let trackWideo = null;
 
-        window.inicjalizujAparat = async function() {
-            debugElement.innerText = "Inicjalizacja kamery...";
+        // Krok 1: Wymuszenie pierwszego uprawnienia, aby móc wylistować identyfikatory sprzętowe
+        window.skanujUrzyczeniaIdzDoInicjalizacji = async function() {
             try {
-                streamWideo = await navigator.mediaDevices.getUserMedia({
-                    video: { 
-                        facingMode: "environment"
-                    }
-                });
+                debugElement.innerText = "Uzyskiwanie wstępnego dostępu do multimediów...";
+                const wstepnyStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                // Zamknięcie wstępnego strumienia
+                wstepnyStream.getTracks().forEach(track => track.stop());
                 
-                videoElement.srcObject = streamWideo;
-                trackWideo = streamWideo.getVideoTracks()[0];
-                
-                setTimeout(() => {
-                    try {
-                        const capabilities = trackWideo.getCapabilities();
-                        if (capabilities.torch) {
-                            debugElement.innerText = "Aparat podłączony. Wykryto moduł latarki.";
-                        } else {
-                            debugElement.innerText = "Aparat podłączony, ale przeglądarka NIE wykryła latarki w tym aparacie.";
-                        }
-                    } catch (e) {
-                        debugElement.innerText = "Aparat podłączony. Brak możliwości odczytu specyfikacji (getCapabilities).";
-                    }
-                }, 1000);
+                // Przejście do właściwego wyboru kamery
+                inicjalizujAparatZObslugaLatarki();
+            } catch (error) {
+                debugElement.innerText = "Brak podstawowych uprawnień do kamery: " + error.message;
+            }
+        }
 
+        // Krok 2: Przeiterowanie po kamerach w celu znalezienia modułu 'torch'
+        async function inicjalizujAparatZObslugaLatarki() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                let wybranyDeviceId = null;
+                debugElement.innerText = `Znaleziono kamer: ${videoDevices.length}. Szukanie modułu latarki...`;
+
+                // Testowanie każdej kamery po kolei od końca (zazwyczaj kamery tylne są na końcu listy)
+                for (let i = videoDevices.length - 1; i >= 0; i--) {
+                    const device = videoDevices[i];
+                    const testStream = await navigator.mediaDevices.getUserMedia({
+                        video: { deviceId: { exact: device.deviceId } }
+                    });
+                    const testTrack = testStream.getVideoTracks()[0];
+                    const capabilities = testTrack.getCapabilities ? testTrack.getCapabilities() : {};
+
+                    if (capabilities.torch) {
+                        wybranyDeviceId = device.deviceId;
+                        streamWideo = testStream;
+                        trackWideo = testTrack;
+                        debugElement.innerText = `Sukces: Wybrano kamerę ID: ${device.label || i} z obsługą latarki.`;
+                        break;
+                    } else {
+                        // Jeśli ta kamera nie ma latarki, zamykamy strumień i sprawdzamy następną
+                        testTrack.stop();
+                    }
+                }
+
+                // Fallback: jeśli żadna kamera nie zaraportowała 'torch', weź domyślną tylną
+                if (!wybranyDeviceId) {
+                    debugElement.innerText = "Żadna kamera nie zgłosiła 'torch'. Próba wymuszenia domyślnej tylnej...";
+                    streamWideo = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: "environment" }
+                    });
+                    trackWideo = streamWideo.getVideoTracks()[0];
+                }
+
+                videoElement.srcObject = streamWideo;
                 btnPermission.style.display = 'none';
                 logoTekst.innerText = "Połączono. Oczekiwanie na dane z pilota...";
                 
                 uruchomNasluchiwanieBazy();
+
             } catch (error) {
-                debugElement.innerText = "BŁĄD krytyczny getUserMedia: " + error.message;
-                logoTekst.innerText = "Błąd inicjalizacji sprzętu.";
+                debugElement.innerText = "Błąd krytyczny skanowania: " + error.message;
             }
+        }
+
+        function运行NasluchiwanieBazy() {
+            // Logika bez zmian
+            uruchomNasluchiwanieBazy();
         }
 
         function uruchomNasluchiwanieBazy() {
             const stanRef = ref(database, 'slupki/' + idSlupka);
-
             onValue(stanRef, (snapshot) => {
                 const data = snapshot.val();
                 if (data === 1) {
@@ -145,13 +178,12 @@
                     advanced: [{ torch: stan }]
                 })
                 .then(() => {
-                    debugElement.innerText = "Dioda LED zsynchronizowana ze stanem: " + stan;
+                    const aktualnyStatus = debugElement.innerText.split("\n")[0];
+                    debugElement.innerText = aktualnyStatus + "\nLED Stan: " + stan;
                 })
                 .catch(err => {
                     debugElement.innerText = "Błąd applyConstraints: " + err.message;
                 });
-            } else {
-                debugElement.innerText = "Błąd wykonawczy: trackWideo nieaktywny lub brak obsługi applyConstraints.";
             }
         }
     </script>
