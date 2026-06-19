@@ -5,17 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Status Odbiornika 10</title>
     <style>
-        /* Modyfikacja body w celu poprawnego centrowania elementów przy układzie flexbox */
         body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; background: #222; color: white; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         #kolo { width: 200px; height: 200px; border-radius: 50%; margin: 40px auto; background-color: #555; transition: background-color 0.3s ease; }
         #tekst { font-size: 24px; font-weight: bold; }
         
-        /* Dodano styl pełnoekranowego panelu przechwytującego kliknięcie użytkownika */
         #btn-permission { 
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
             background-color: rgba(41, 128, 185, 0.95); color: white; 
             z-index: 9999; border: none; font-size: 28px; font-weight: bold; 
             cursor: pointer; padding: 40px; text-align: center;
+        }
+
+        /* Ukryty element wideo wymuszający działanie hardware'u, umieszczony poza ekranem */
+        #sprzetowy-strumien {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
         }
     </style>
 </head>
@@ -25,6 +32,8 @@
         DOTKNIJ EKRANU TEL. SŁUPKA<br><br>
         Aby aktywować koło, napisy i latarkę
     </button>
+
+    <video id="sprzetowy-strumien" autoplay playsinline muted></video>
 
     <h2 id="naglowek">Status Słupka</h2>
     <div id="kolo"></div>
@@ -41,8 +50,8 @@
         const logoTekst = document.getElementById('tekst');
         const kolo = document.getElementById('kolo');
         const btnPermission = document.getElementById('btn-permission');
+        const videoElement = document.getElementById('sprzetowy-strumien');
 
-        // Zachowana Twoja konfiguracja Firebase projektu sterowanie-slupkiem10
         const firebaseConfig = {
             apiKey: "AIzaSyDaT2Eqg5431xX6Q0VwOoaCeyVofxhYw74",
             authDomain: "sterowanie-slupkiem10.firebaseapp.com",
@@ -56,62 +65,57 @@
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
         
-        // Inicjalizacja zmiennych przechowujących referencje do hardware'u kamery
         let streamWideo = null;
         let trackWideo = null;
 
-        // Funkcja wywoływana gestem użytkownika, żądająca dostępu do tylnej kamery
         window.inicjalizujAparat = async function() {
             try {
                 streamWideo = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" }
+                    video: { 
+                        facingMode: "environment"
+                    }
                 });
+                
+                // Przekazanie strumienia do elementu HTML i uruchomienie odtwarzania
+                videoElement.srcObject = streamWideo;
+                
                 trackWideo = streamWideo.getVideoTracks()[0];
                 btnPermission.style.display = 'none';
                 logoTekst.innerText = "Połączono. Oczekiwanie na dane z pilota...";
                 
-                // Bezpieczne uruchomienie nasłuchiwania bazy po uzyskaniu dostępu do sprzętu
                 uruchomNasluchiwanieBazy();
             } catch (error) {
-                alert("Błąd dostępu do aparatu/latarki: " + error.message);
+                alert("Błąd sprzętowy: " + error.message + ". Upewnij się, że używasz systemu Android oraz protokołu HTTPS.");
                 logoTekst.innerText = "Błąd inicjalizacji sprzętu.";
             }
         }
 
-        // Przeniesienie logiki nasłuchiwania Firebase do osobnej funkcji sterującej wizualizacją i latarką
         function uruchomNasluchiwanieBazy() {
             const stanRef = ref(database, 'slupki/' + idSlupka);
 
             onValue(stanRef, (snapshot) => {
                 const data = snapshot.val();
                 if (data === 1) {
-                    // Zachowanie dotychczasowej funkcjonalności wizualnej
                     kolo.style.backgroundColor = '#e74c3c'; 
                     logoTekst.innerText = "SŁUPEK PODNIESIONY";
-                    // Sterowanie sprzętowe
                     wysterujLatarke(true);
                 } else if (data === 0) {
-                    // Zachowanie dotychczasowej funkcjonalności wizualnej
                     kolo.style.backgroundColor = '#2ecc71'; 
                     logoTekst.innerText = "SŁUPEK OPUSZCZONY";
-                    // Sterowanie sprzętowe
                     wysterujLatarke(false);
                 } else {
-                    // Zachowanie dotychczasowej funkcjonalności wizualnej
                     kolo.style.backgroundColor = '#555';
                     logoTekst.innerText = "Brak danych (Uruchom pilota i nadaj stan)";
-                    // Sterowanie sprzętowe
                     wysterujLatarke(false);
                 }
             });
         }
 
-        // Niskopoziomowa funkcja modyfikująca parametry pracy diody LED aparatu
         function wysterujLatarke(stan) {
             if (trackWideo && typeof trackWideo.applyConstraints === 'function') {
                 trackWideo.applyConstraints({
                     advanced: [{ torch: stan }]
-                }).catch(err => console.log("Błąd przełączania diody LED:", err));
+                }).catch(err => console.log("Żądanie zmiany stanu diody odrzucone przez system:", err));
             }
         }
     </script>
